@@ -1,7 +1,9 @@
 
-from ..funciones_auxiliares import obtener_clave_y_ip,create_or_update_group_vars_file
+from ..funciones_auxiliares import obtener_clave_y_ip,create_or_update_group_vars_file,obtener_parametros_vpn,sumar_a_ip,cidr_to_network_and_wildcard,cidr_to_network_and_wildcard_tuple
 import json
 from Configuraccion_acceso_dispositivos_RESTCONF import obtener_informacion_restconf
+import ipaddress
+
 
 
 #------------------------------------------------------Obtención informacion-------------------------
@@ -27,7 +29,7 @@ def obtener_datos_firewall_nat_vpn_restconf(host,parametros,host_vars,grupo_apli
         - Las claves en 'host_vars' deben estar correctamente definidas para evitar errores.
     """
 
-    parametros.update(_obtener_parametros_vpn(host_vars))
+    parametros.update(obtener_parametros_vpn(host_vars))
 
     # Obtener información de rutas desde el dispositivo
     data = obtener_informacion_restconf(
@@ -151,11 +153,11 @@ def obtener_datos_cpe_nat_restconf(host, parametros, host_vars, grupo_aplicado):
                 for vecino_ospf in vecino_data['Cisco-IOS-XE-ospf-oper:ospf-instance'][0]['ospf-area'][0]['ospf-interface']:
                     if ipaddress.ip_address(vecino_ospf['ospf-neighbor'][0]['address']) in ipaddress.ip_network(ip_elegida, strict=False):
                         ip_cpe = sumar_a_ip(ip_cpe_data['ietf-interfaces:interface']['ietf-ip:ipv4']['address'][0]['ip'], 13)
-                        network, wildcard = _cidr_to_network_and_wildcard_tuple(ip_elegida)
+                        network, wildcard = cidr_to_network_and_wildcard_tuple(ip_elegida)
 
                         # Actualizar parámetros
                         parametros['red_interna'] = [{
-                            "ip": _cidr_to_network_and_wildcard(ip_elegida),
+                            "ip": cidr_to_network_and_wildcard(ip_elegida),
                             "destino": "any",
                         }]
                         if host['nombre_equipo'] not in parametros:

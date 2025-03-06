@@ -3,6 +3,9 @@ from Configuraccion_acceso_dispositivos_RESTCONF import obtener_informacion_rest
 import requests
 from requests.auth import HTTPBasicAuth
 import pandas as pd
+import ipaddress
+from ipaddress import IPv4Address
+import re
 file_path = '..politica_seguridad.xlsx'
 
 #----------------------------------------------------------------Obtener información----------------------------------

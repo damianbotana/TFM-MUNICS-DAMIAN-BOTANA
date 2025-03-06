@@ -1,6 +1,14 @@
 from napalm import get_network_driver
 
 
+def obtener_linea_posterior(texto, marcador):
+    lineas = texto.split('\n')
+    for i, linea in enumerate(lineas):
+        if marcador in linea:
+            if i + 1 < len(lineas):
+                return lineas[i + 1]
+    return None
+
 def obtener_informacion_napalm(host,lista_operacciones,lista_palabras_guardar):
     """
     Conecta a un dispositivo de red utilizando NAPALM y obtiene información específica basada en las operaciones solicitadas.

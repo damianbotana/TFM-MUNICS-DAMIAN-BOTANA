@@ -17,8 +17,8 @@ def  lectura_datos_netmiko(host,comandos,informacion_obtenida):
         lo que se devuelve es un diccionario con la informacion obtenida
 
      """
-     global total_read
-     start_time = time.time()
+    
+     
      host_copy = host.copy()
      if 'nombre_equipo' in host_copy:
         host_copy.pop('nombre_equipo')

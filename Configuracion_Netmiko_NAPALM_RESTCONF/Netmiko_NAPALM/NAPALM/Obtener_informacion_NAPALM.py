@@ -1,9 +1,7 @@
-from ..funciones_auxiliares import obtener_clave_y_ip,create_or_update_group_vars_file
-from ipaddress import IPv4Address,
 import re
 import ipaddress
 from configuracion_acceso_dispositivo_NAPALM import obtener_informacion_napalm
-
+from ....Configuracion_Netmiko_NAPALM_RESTCONF.funciones_auxiliares import convertir_cidr_a_diccionario,find_network_in_range,obtener_parametros_vpn,create_or_update_group_vars_file,cidr_to_network_and_wildcard,sumar_a_ip,find_network_in_range
 
 def obtener_datos_cpe_nat_vpn_napalm(host,parametros,host_vars,grupo_aplicado):
     """
@@ -52,7 +50,7 @@ def obtener_datos_cpe_nat_vpn_napalm(host,parametros,host_vars,grupo_aplicado):
 
 
     parametros['red_interna']=[ {
-        "ip":_cidr_to_network_and_wildcard(ip_elegida),
+        "ip":cidr_to_network_and_wildcard(ip_elegida),
         "destino": "any",
     }
     ]
@@ -78,7 +76,7 @@ def obtener_datos_cpe_nat_vpn_napalm(host,parametros,host_vars,grupo_aplicado):
 
 def obtener_datos_firewall_nat_napalm(host,parametros,host_vars,grupo_aplicado):
 
-    parametros.update(_obtener_parametros_vpn(host_vars))
+    parametros.update(obtener_parametros_vpn(host_vars))
     comandos = [['show ip route ospf', 'show ip int brief']]
     informacion_obtenida = ['redes_ospf', 'ips_propias']
     resultados = obtener_informacion_napalm(host, comandos, informacion_obtenida)
@@ -93,7 +91,7 @@ def obtener_datos_firewall_nat_napalm(host,parametros,host_vars,grupo_aplicado):
     print(f"Redes conectadas: {redes_conectadas}")
 
     # Determinar la IP conectada al ISP
-    ip_firewall_a_cpe = _find_network_in_range( redes_conectadas,host_vars['red_interna_paso_vpn'])
+    ip_firewall_a_cpe = find_network_in_range( redes_conectadas,host_vars['red_interna_paso_vpn'])
 
     print(f"IP conectada al ISP: {ip_firewall_a_cpe}")
 
@@ -114,7 +112,7 @@ def obtener_datos_firewall_nat_napalm(host,parametros,host_vars,grupo_aplicado):
             parametros[firewall]['bgp_id'] = 65000 + i
 
 
-    parametros['redes_compartir']=_convertir_cidr_a_diccionario(ospf_networks)
+    parametros['redes_compartir']= convertir_cidr_a_diccionario(ospf_networks)
 
 
     #se obtiene el dispositivo que funcionara como hub de la vpn

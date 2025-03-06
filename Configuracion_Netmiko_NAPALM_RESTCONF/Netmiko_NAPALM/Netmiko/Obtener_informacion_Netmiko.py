@@ -1,4 +1,4 @@
-from ..funciones_auxiliares import obtener_clave_y_ip,create_or_update_group_vars_file
+from ....Configuracion_Netmiko_NAPALM_RESTCONF.funciones_auxiliares import cidr_to_network_and_wildcard,find_network_for_gateway,sumar_a_ip, convertir_cidr_a_diccionario,find_network_in_range,obtener_clave_y_ip,create_or_update_group_vars_file,obtener_parametros_vpn
 from ipaddress import IPv4Address
 from configuracion_acceso_dispositivos_netmiko import lectura_datos_netmiko
 import re
@@ -109,7 +109,7 @@ def obtener_vpn_firewall_netmiko_informacion(host,parametros,host_vars,grupo_apl
             - Determina el dispositivo que funcionará como hub de la VPN.
     """
 
-    parametros.update(_obtener_parametros_vpn(host_vars))
+    parametros.update(obtener_parametros_vpn(host_vars))
     comandos = ['show ip route ospf', 'show ip int brief']
     informacion_obtenida = ['redes_ospf', 'ips_propias']
     resultados = lectura_datos_netmiko(host, comandos, informacion_obtenida)
@@ -124,7 +124,7 @@ def obtener_vpn_firewall_netmiko_informacion(host,parametros,host_vars,grupo_apl
     print(f"Redes conectadas: {redes_conectadas}")
 
     # Determinar la IP conectada al ISP
-    ip_firewall_a_cpe = _find_network_in_range( redes_conectadas,host_vars['red_interna_paso_vpn'])
+    ip_firewall_a_cpe = find_network_in_range( redes_conectadas,host_vars['red_interna_paso_vpn'])
 
     print(f"IP conectada al ISP: {ip_firewall_a_cpe}")
 
@@ -145,7 +145,7 @@ def obtener_vpn_firewall_netmiko_informacion(host,parametros,host_vars,grupo_apl
             parametros[firewall]['bgp_id'] = 65000 + i
 
 
-    parametros['redes_compartir']=_convertir_cidr_a_diccionario(ospf_networks)
+    parametros['redes_compartir']= convertir_cidr_a_diccionario(ospf_networks)
 
 
     #se obtiene el dispositivo que funcionara como hub de la vpn
@@ -234,7 +234,7 @@ def obterner_datos_cpe_nat_vpn_netmiko(host,parametros,host_vars,grupo_aplicado)
     # 7. Extraer las redes y sus interfaces
     networks_and_interfaces_raw = re.findall(r'([0-9.]+/[0-9]+).* (GigabitEthernet\S+)', routing_table_output)
     # 8. Filtrar redes que contienen el gateway predeterminado
-    networks_and_interfaces = _find_network_for_gateway(default_gateway, networks_and_interfaces_raw)
+    networks_and_interfaces = find_network_for_gateway(default_gateway, networks_and_interfaces_raw)
     # 9. Resultado de 'show ip ospf neighbor'
     ospf_neighbor_output = diccionario["ospf_neighbor"]
 
@@ -246,12 +246,12 @@ def obterner_datos_cpe_nat_vpn_netmiko(host,parametros,host_vars,grupo_aplicado)
     print("********************************")
 
     print(f"La dirección IP del vecino OSPF es: {neighbor_ip}")
-    print(f"  La ip eleguida es ip_elegida_final: {_cidr_to_network_and_wildcard(ip_elegida)}")
+    print(f"  La ip eleguida es ip_elegida_final: {cidr_to_network_and_wildcard(ip_elegida)}")
     print(f"  La ip gateway es default_gateway_final: {default_gateway}")
     print(f"{networks_and_interfaces[1] }")
 
     parametros['red_interna']=[ {
-        "ip":_cidr_to_network_and_wildcard(ip_elegida),
+        "ip": cidr_to_network_and_wildcard(ip_elegida),
         "destino": "any",
     }
     ]
