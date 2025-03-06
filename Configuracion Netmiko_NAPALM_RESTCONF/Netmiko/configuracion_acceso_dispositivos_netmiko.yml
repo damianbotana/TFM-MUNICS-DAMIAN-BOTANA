@@ -1,6 +1,4 @@
 from netmiko import ConnectHandler
-import re
-import ipaddress
 
 def convertir_comandos(comando_string):
     lineas = comando_string.splitlines()
