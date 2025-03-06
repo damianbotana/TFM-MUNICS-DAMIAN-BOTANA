@@ -1,0 +1,22 @@
+- name: Creacion CA
+  hosts: ISP
+  gather_facts: false
+  become: yes
+  vars_files:
+    - secrets.yml
+  tasks:
+    #modo interactivo poner contraseña certificado
+    - name: Configuracion CA
+      ansible.netcommon.cli_command:
+        command: "{{ item }}"
+        check_all: true
+        prompt:
+          - Password
+        answer:
+          - "{{password_ca}}"
+      loop:
+          - configure terminal
+          - crypto pki server {{inventory_hostname}}
+          - issuer-name CN={{inventory_hostname}},O={{subname}},C=ES
+          - grant auto
+          - no shutdown

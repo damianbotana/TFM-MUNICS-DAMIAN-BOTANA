@@ -1,0 +1,67 @@
+---
+- name: Configurar SSH en los dispositivos
+  hosts: all
+  gather_facts: no
+  vars_files:
+    - secrets.yml
+
+  tasks:
+    - name: Configurar ssh en el resto de dispositivos
+      ansible.netcommon.telnet:
+        user: "{{ansible_user}}"
+        password: "{{ansible_password}}"
+        login_prompt: "Username: "
+        timeout: 10
+        prompts:
+          - "[>#]"
+          - "Password:"
+          -  "[yes/no]"
+          - "How many bits in the modulus [512]:"
+        command:
+          - terminal length 0
+          - conf t
+          - ip domain-name {{ inventory_hostname }}.com
+          - crypto key generate rsa
+          - "yes"
+          - "{{tamano_clave_rsa}}"
+          - ip ssh version 2
+          - ip ssh authentication-retries 2
+          - ip ssh time-out 60
+          - line vty 0 4
+          - transport input ssh
+      when:  "'#' in output.stdout"
+      
+    - name: Configurar ssh en los DL-SW
+      ansible.netcommon.telnet:
+        user: "{{ansible_user}}"
+        password: "{{ansible_password}}"
+        login_prompt: "Username: "
+        timeout: 10
+        prompts:
+          - "[>#]"
+          - "Password:"
+          -  "[yes/no]"
+          - "How many bits in the modulus [512]:"
+        command:
+          - terminal length 0
+          - enable
+          - cisco
+          - conf t
+          - ip domain-name {{ inventory_hostname }}.com
+          - crypto key generate rsa
+          - "yes"
+          - "{{tamano_clave_rsa}}"
+          - ip ssh version 2
+          - ip ssh authentication-retries 2
+          - ip ssh time-out 60
+          - line vty 0 4
+          - transport input ssh
+
+      
+      when:  "'#' not  in output.stdout"
+
+    - name: Print the output
+      debug:
+        var: output
+    
+

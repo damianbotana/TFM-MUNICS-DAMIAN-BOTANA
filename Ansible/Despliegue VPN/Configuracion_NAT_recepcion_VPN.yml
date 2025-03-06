@@ -1,0 +1,110 @@
+- name: Habilitar NAT VPN automaticamente
+  hosts: cpes
+  gather_facts: false
+  become: yes
+  vars:
+    nombre_grupo: cpe
+  vars_files:
+    - secrets.yml
+
+  tasks:
+    - name: Ejecutar show ip route connected
+      cisco.ios.ios_command:
+        commands:
+          - show ip route connected
+      register: resultado_route_connected
+
+    - name: Obtener todas las redes conectadas del resultado de show ip route connected
+      set_fact:
+        redes_conectadas: "{{ resultado_route_connected.stdout[0] | regex_findall('C\\s+([0-9.]+/[0-9]+)') }}"
+
+
+    - name: Mostrar todas las redes conectadas
+      debug:
+        msg: "Redes conectadas encontradas: {{ redes_conectadas }}"
+    - name: Solicitar entrada del usuario (solo en el primer equipo)
+      pause:
+        prompt: "Escribe la opción que deseas usar (elige una de las siguientes IPs: {{ redes_conectadas }}):"
+      register: ip_elegida
+      delegate_to: localhost
+      run_once: true
+
+    - name: Establecer la dirección IP elegida como un hecho
+      set_fact:
+        ip_elegida_final: "{{ ip_elegida.user_input }}"
+
+    - name: Validar la dirección IP elegida
+      fail:
+        msg: "La dirección IP elegida no es válida. Debe ser una de las siguientes: {{ redes_conectadas }}"
+      when: ip_elegida_final not in redes_conectadas
+
+    - name: Ejecutar show ip route
+      cisco.ios.ios_command:
+        commands:
+          - show ip route
+      register: routing_table_output
+
+    - name: Extraer gateway de la ruta predeterminada
+      set_fact:
+        default_gateway: "{{ (routing_table_output.stdout[0] | regex_search('S\\*\\s+0\\.0\\.0\\.0/0\\s+\\[\\d+/\\d+\\]\\s+via\\s+([0-9.]+)', '\\1')) | first }}"
+
+    - name: Validar si se encontró un gateway
+      fail:
+        msg: "No se encontró un gateway en la salida de la tabla de enrutamiento."
+      when: default_gateway is not defined or default_gateway == ""
+
+    - name: Extraer las redes y sus interfaces
+      set_fact:
+        networks_and_interfaces_raw: "{{ routing_table_output.stdout[0] | regex_findall('([0-9.]+/[0-9]+).* (GigabitEthernet\\S+)') }}"
+
+
+    - name: Mostrar resultado para cada elemento del loop
+      set_fact:
+        networks_and_interfaces: "{{ red }}"
+      loop: "{{ networks_and_interfaces_raw }}"
+      loop_control:
+        loop_var: red
+      when: "{{ (red[0] | ansible.utils.network_in_usable(default_gateway)) | string }}"
+
+    - name: Ejecutar show ip route connected
+      cisco.ios.ios_command:
+        commands:
+          - show ip ospf neighbor
+      register: ospf_neighbor_output
+
+    - name: Extraer la IP del vecino OSPF
+      set_fact:
+        neighbor_ip: "{{ ospf_neighbor_output.stdout[0] | regex_search('^\\s*([0-9.]+)\\s+\\d+\\s+FULL/BDR\\s+\\d+:\\d+:\\d+\\s+([0-9.]+)\\s+GigabitEthernet\\S+', '\\2', multiline=True) }}"
+
+    # ejecucion de comandos en los dispositivos
+    - name: Indicar ips que realizaran el nat
+      name: Realizacion Nat vpn puertos
+      cisco.ios.ios_config:
+        lines:
+        - access-list 123 permit ip {{ ip_elegida_final | ipaddr('network') }} {{ ip_elegida_final | ipaddr('wildcard') }} any
+
+    - name: Realizacion Nat vpn puertos
+      cisco.ios.ios_config:
+        lines:
+          - ip nat inside source list 123 interface {{  networks_and_interfaces[1] }} overload
+
+    - name: Realizacion Nat vpn puertos
+      cisco.ios.ios_config:
+        lines:
+          - ip nat inside source static udp {{ item }} 500 {{ default_gateway | ansible.utils.ipmath(3) }} 500
+          - ip nat inside source static udp {{ item }} 4500 {{ default_gateway | ansible.utils.ipmath(3)}} 4500
+      with_items: "{{ neighbor_ip}}"
+
+    # se guarda en el fichero de variables de ansible la informacion obtenida
+
+    - name: Obtenr la zona donde pertenece el dispositivo
+      set_fact:
+        zona_group: "{{ group_names | select('match', '^zona.*') | list | first }}"
+
+    - name: Guardar la informacion del gateway en el fichero de configuracion
+      command: python3 poner_variable.py {{ zona_group }} red_interna_paso_vpn {{ ip_elegida_final }}
+      delegate_to: localhost
+
+    - name: Guardar la informacion del gateway ip que se observa desde fuera
+      command: python3 poner_variable.py {{ zona_group }} ip_recepcion_vpn {{ default_gateway | ansible.utils.ipmath(3) }}
+      delegate_to: localhost

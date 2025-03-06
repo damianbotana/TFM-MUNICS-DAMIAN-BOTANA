@@ -1,0 +1,231 @@
+ - name: Configuración VPN entre los firewalls
+  hosts: firewalls
+  gather_facts: false
+  become: yes
+  vars:
+    nombre_grupo: firewalls
+    rango_vpn: 172.16.12.0/24
+    bgp_id: 65000
+
+  vars_files:
+    - secrets.yml
+
+  tasks:
+
+    # Guardar la red que se usa en la VPN si no está definida
+    - name: Guardar la red que se usa en la VPN
+      command: python3 poner_variable.py {{ nombre_grupo }} red_vpn {{ rango_vpn }}
+      delegate_to: localhost
+      when: red_vpn is not defined
+
+    # Obtener redes OSPF desde el dispositivo
+    - name: Obtener redes de OSPF
+      cisco.ios.ios_command:
+        commands:
+          - show ip route ospf
+      register: redes_ospf
+
+    # Extraer redes OSPF utilizando expresiones regulares
+    - name: Extraer redes OSPF con regex_findall
+      set_fact:
+        ospf_networks: "{{ redes_ospf.stdout[0] | regex_findall('O\\s+([0-9.]+/[0-9]+)') }}"
+
+
+
+    # Obtener información de interfaces y direcciones IP locales
+    - name: Obtener IPs asociadas al equipo
+      cisco.ios.ios_command:
+        commands:
+          - show ip int brief
+      register: ips_propias
+
+    # Extraer direcciones IP conectadas al equipo
+    - name: Obtener la IP del equipo
+      set_fact:
+        redes_conectadas: "{{ ips_propias.stdout[0] | regex_findall('\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b') }}"
+
+    # Determinar la IP conectada al ISP
+    - name: Obtener la IP del equipo conectada al ISP
+      set_fact:
+        ip_firewall_a_cpe: >
+          {{ red }}
+      loop: "{{ redes_conectadas }}"
+      loop_control:
+        loop_var: red
+      when: red_interna_paso_vpn | ansible.utils.network_in_usable(red)
+
+
+    # Crear keyring en los CPE
+    - name: Creación keyring en los CPE
+      cisco.ios.ios_config:
+        lines:
+          - address {{ hostvars[item]['ip_recepcion_vpn'] }}
+          - pre-shared-key local {{ hostvars[inventory_hostname].get(inventory_hostname + '_clave_keyring') }}
+          - pre-shared-key remote {{ hostvars[item].get(item + '_clave_keyring') }}
+        parents:
+          - crypto ikev2 keyring KEYRING
+          - peer {{ item }}
+      with_items: "{{ groups[nombre_grupo] }}"
+      when: item != inventory_hostname
+
+
+    # Crear perfil de seguridad VPN
+    - name: Creación perfil de seguridad VPN
+      cisco.ios.ios_config:
+        lines:
+          - match identity remote fqdn {{ item }}
+          - identity local fqdn {{ inventory_hostname }}
+          - authentication remote pre-share
+          - authentication local pre-share
+          - keyring local KEYRING
+        parents:
+          - crypto ikev2 profile ike_v2_profile
+      with_items: "{{ groups[nombre_grupo] }}"
+      when: item != inventory_hostname
+
+    # Definir algoritmos de cifrado para la VPN
+    - name: Definición algoritmos de cifrado VPN
+      cisco.ios.ios_config:
+        lines:
+          - encryption {{ encriptado }}
+          - prf {{ integridad }}
+          - group {{ grupo_dif }}
+        parents:
+          - crypto ikev2 proposal ikev2_proposal
+
+    # Crear propuesta de política para IKEv2
+    - name: Definición propuesta policy
+      cisco.ios.ios_config:
+        lines:
+          - proposal ikev2_proposal
+        parents:
+          - crypto ikev2 policy ikev2_policy
+
+    # Crear perfil IPsec para la VPN
+    - name: Definición de un IPsec
+      cisco.ios.ios_config:
+        lines:
+          - set ikev2-profile ike_v2_profile
+        parents:
+          - crypto ipsec profile ipsec_profile
+
+    - name: Obtener el número de integrantes del grupo
+      set_fact:
+        numero_integrantes: "{{ groups[nombre_grupo] | length | int }}"
+      delegate_to: localhost
+      run_once: true
+
+    # Configurar una VPN site to site en caso que se quiere realizar una vpn entre dos dispositivos
+    - name: Obtener la posición del dispositivo en el grupo
+      set_fact:
+        posicion_dispositivo: "{{ groups[nombre_grupo].index(inventory_hostname) }}"
+
+    - name: Creación túnel site to site
+      cisco.ios.ios_config:
+        lines:
+          - ip address {{ red_vpn | ansible.utils.ipmath(posicion_dispositivo | int  + 1) }} 255.255.255.252
+          - tunnel source {{ ip_firewall_a_cpe }}
+          - tunnel destination {{ hostvars[item.1]['ip_recepcion_vpn'] }}
+          - tunnel protection ipsec profile ipsec_profile
+        parents:
+          - interface Tunnel0
+      with_indexed_items: "{{ groups[nombre_grupo] }}"
+      when:  numero_integrantes | int < 3 and  item.1 != inventory_hostname
+
+    #configurar un hub en una VPN con un tunel mgre
+    - name: Configuracion hub en una VPN con un tunel MGRE
+      cisco.ios.ios_config:
+        lines:
+          - ip address {{ red_vpn | ansible.utils.ipmath(1) }} 255.255.255.0
+          - tunnel source {{ ip_firewall_a_cpe }}
+          - tunnel mode gre multipoint
+          - tunnel protection ipsec profile ipsec_profile
+          #se tiene que cambiar dicho valor por una clave de forma dinamica
+          - ip nhrp authentication DMVPN
+          - ip nhrp network-id 1
+          - ip nhrp map multicast dynamic
+        parents:
+          - interface Tunnel 0
+      when: numero_integrantes | int >= 3 and inventory_hostname == groups[nombre_grupo][0]
+
+    # Configurar los spokes del tunel con MGRE
+    - name: Configuración de los spokes en una VPN con un túnel mGRE
+      cisco.ios.ios_config:
+        lines:
+          - ip address {{ red_vpn | ansible.utils.ipmath(posicion_dispositivo | int + 1) }} 255.255.255.0
+          - tunnel source {{ ip_firewall_a_cpe }}
+          - tunnel destination {{ hostvars[groups[nombre_grupo][0]]['ip_recepcion_vpn'] }}
+          - ip nhrp authentication DMVPN
+          - ip nhrp network-id 1
+          - ip nhrp  nhs {{ red_vpn | ansible.utils.ipmath(1) }} nbma {{ hostvars[groups[nombre_grupo][0]]['ip_recepcion_vpn'] }} multicast
+          - tunnel protection ipsec profile ipsec_profile
+        parents:
+          - interface Tunnel0
+      when:
+        - numero_integrantes | int >= 3
+        - inventory_hostname != groups[nombre_grupo][0]
+
+
+    # Crear IDs de BGP para las redes
+    - name: Crear BGP IDs de las redes
+      set_fact:
+        "{{ item.1 }}_bgp_id": "{{ bgp_id + item.0 }}"
+        "{{ item.1 }}_VPN_IP": "{{ red_vpn | ansible.utils.ipmath(item.0 | int +1) }}"
+      with_indexed_items: "{{ groups[nombre_grupo] }}"
+      delegate_to: localhost
+      run_once: true
+
+    # Configurar BGP para redes y vecinos en el centro
+    - name: Crear BGP en el hub
+      cisco.ios.ios_bgp_global:
+        config:
+          as_number: "{{ hostvars[inventory_hostname].get(inventory_hostname + '_bgp_id') }}"
+          bgp:
+            advertise_best_external: true
+            log_neighbor_changes: true
+          networks:
+            - address: "{{ item.0 | ipaddr('network') }}"
+          neighbors:
+            - neighbor_address: "{{ hostvars[inventory_hostname].get((item.1 + '_VPN_IP')) }}"
+              description: "neighbor asociacion"
+              remote_as: "{{ hostvars[item.1].get(item.1 + '_bgp_id') }}"
+              slow_peer:
+                detection:
+                  disable: true
+      with_nested:
+        - "{{ ospf_networks }}"
+        - "{{ groups[nombre_grupo] }}"
+      when: item.1 != inventory_hostname and inventory_hostname == groups[nombre_grupo][0]
+
+    # Configurar BGP para redes y vecinos secundarios
+    - name: Crear BGP de las redes y vecinos secundarios
+      cisco.ios.ios_bgp_global:
+        config:
+          as_number: "{{ hostvars[inventory_hostname].get(inventory_hostname +'_bgp_id') }}"
+          bgp:
+            advertise_best_external: true
+            log_neighbor_changes: true
+          networks:
+            - address: "{{ item | ipaddr('network') }}"
+          neighbors:
+            - neighbor_address: "{{ hostvars[inventory_hostname].get((groups[nombre_grupo][0] + '_VPN_IP' )) }}"
+              description: "neighbor asociacion"
+              remote_as: "{{ hostvars[inventory_hostname].get(groups[nombre_grupo][0] +'_bgp_id')}}"
+              slow_peer:
+                detection:
+                  disable: true
+        state: merged
+      with_items: "{{ ospf_networks }}"
+      when: inventory_hostname != groups[nombre_grupo][0]
+
+    # Redistribuir rutas OSPF en BGP
+    - name: OSPF distribuir en BGP
+      cisco.ios.ios_config:
+        lines:
+          - "redistribute bgp {{ hostvars[inventory_hostname].get(inventory_hostname +'_bgp_id')}}"
+        parents:
+          - router ospf 1
+    #habilitar trafico dhcp a unicast para su envio por el tunel
+    - name: DHCP Unicast tunel
+      cisco.ios.ios_config:
+        lines: ip dhcp support tunnel unicast

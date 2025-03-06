@@ -1,0 +1,290 @@
+- name: Configuración Politicas de seguridad DL-SW
+  hosts: switches
+  gather_facts: false
+  become: yes
+  vars:
+    nombre_grupo: switches
+    mi_diccionario: {}
+    excel_file: "politica_seguridad.csv"
+
+    protocolos_acl_puertos:
+       OSPF:
+            tipo: "ospf"
+            puerto: ""
+       HTTP:
+            tipo: "tcp"
+            puerto: "www"
+       HTTPS:
+            tipo: "tcp"
+            puerto: "443"
+       DNS:
+            tipo: "udp"
+            puerto: "domain"
+       DHCP:
+            tipo: "udp"
+            puerto: "bootps"
+       ICMP(ping):
+            tipo: "icmp"
+            puerto: ""
+    lista_de_diccionarios: []
+    diccionario_zonas: {}
+
+
+
+  vars_files:
+    - secrets.yml
+
+  tasks:
+    -
+
+    - name: Read users from Excel file and return a dictionary
+      community.general.read_csv:
+        path: "{{excel_file}}"
+        key: O/D
+      register: users
+      delegate_to: localhost
+    - name: Guardar zonas
+      set_fact:
+        zonas: "{{ users.dict | dict2items | map(attribute='key') | list }}"
+
+
+    - name: Ejecutar show ip route connected
+      cisco.ios.ios_command:
+        commands:
+          - show ip route connected
+      register: resultado_route_connected
+
+
+    - name: Obtener todas las redes conectadas del resultado de show ip route connected
+      set_fact:
+        redes_conectadas: "{{ resultado_route_connected.stdout[0] | regex_findall('C\\s+([0-9.]+/[0-9]+)') }}"
+
+    # Determinar la IP conectada al ISP
+    - name: Obtener la IP del equipo conectada al vecino Internet
+      set_fact:
+        ip_firewall_a_cpe: "{{ red }}"
+      loop: "{{ redes_conectadas }}"
+      loop_control:
+        loop_var: red
+      when: red_interna_paso_vpn | ansible.utils.network_in_usable(red)
+
+    - name: Obtener redes las políticas
+      set_fact:
+        redes_objectivo: "{{ vlan_ips | dict2items | selectattr('key', 'search', '^(?!.*_mask$)') | selectattr('key', '!=', 'Internet') | list }}"
+
+    - name: Poner red internet
+      set_fact:
+        redes_objectivo: "{{ redes_objectivo + [{'key': 'Internet', 'value': '0.0.0.0'}] }}"
+    - name: mostrar
+      debug:
+        msg: "{{ redes_objectivo }}"
+
+    - name: Obtener las rutas de las redes de las políticas
+      cisco.ios.ios_command:
+        commands:
+          - show ip route {{ item.value }}
+      loop: "{{ redes_objectivo }}"
+      loop_control:
+        loop_var: item
+
+      register: resultado
+
+    - name: Obtener zonas interfaces
+      loop: "{{ resultado.results }}"
+      loop_control:
+        loop_var: item
+      vars:
+        interface_match: "{{ item.stdout[0] | default('') | regex_findall('\\s+(GigabitEthernet\\d+|FastEthernet\\d+|Serial\\d+|Tunnel\\d+|Loopback\\d+|Vlan\\d+)') | default([]) }}"
+      set_fact:
+        mi_diccionario: >-
+          {{ mi_diccionario | combine({ interface_match[0]: (mi_diccionario[interface_match[0]] | default([])) + [item.item.key] }) }}
+      when: interface_match | length > 0
+
+    - name: Eliminar interfaz con Internet
+      set_fact:
+        mi_diccionario_sin_internet: "{{ mi_diccionario | dict2items | rejectattr('value', 'search', 'Internet') | items2dict }}"
+
+    - name: Convertir listas en strings
+      set_fact:
+        nombre_zonas: "{{ dict(mi_diccionario | dict2items | map(attribute='key') | zip(mi_diccionario | dict2items | map(attribute='value') | map('join', ','))) }}"
+
+    - name: Convertir listas en strings sin internet
+      set_fact:
+        nombre_zonas_origenes_clientes: "{{ dict(mi_diccionario_sin_internet | dict2items | map(attribute='key') | zip(mi_diccionario_sin_internet | dict2items | map(attribute='value') | map('join', ','))) }}"
+
+
+
+    - name: mostrar
+      debug:
+        msg: "{{ nombre_zonas }}"
+
+    - name: Convertir lista los elementos del dict
+      set_fact:
+        lista_zonas: "{{ nombre_zonas | dict2items | map(attribute='value') | map('split', ',') | list }}"
+
+    - name: Convertir lista elementos origenes clientes del dict
+      set_fact:
+        lista_zonas_origenes_clientes: "{{ nombre_zonas_origenes_clientes | dict2items | map(attribute='value') | map('split', ',') | list }}"
+
+    - name: Obtener diccionario de elemento zona a grupo de zona correspondiente
+      set_fact:
+        diccionario_zonas: "{{ diccionario_zonas | default({}) | combine({ item[0]: item | join(', ') }) }}"
+      loop: "{{ lista_zonas  }}"
+    - name: mostrar
+      debug:
+        msg: "{{ diccionario_zonas }}"
+
+    - name: Añadir diccionarios a la lista
+      set_fact:
+        lista_de_diccionarios: "{{ lista_de_diccionarios + [{'origen': item.0, 'destino': item.1, 'permitido': contenido3 }] }}"
+      vars:
+        contenido: "{{ users['dict'][item.0][item.1] | split(',') | map('trim') |  list  }}"
+        contenido2: "{{ contenido | map('replace',' ','') |  list  }}"
+        contenido3: "{{ contenido2 | map('extract',protocolos_acl_puertos) |  list  }}"
+      with_nested:
+        - "{{  lista_zonas_origenes_clientes | flatten }}"
+        - "{{  lista_zonas | flatten }}"
+      when: item.1!=item.0 and item.0!='ADM' and item.1!='ADM' and  users['dict'][item.0][item.1] not in ['NO','-']
+
+    - name: Crear ACL tráfico de dhcp
+      cisco.ios.ios_acls:
+        config:
+          - afi: ipv4
+            acls:
+              - name: "ACL_{{ item.0.origen }}"
+                acl_type: extended
+                aces:
+                  - grant: permit
+                    protocol: "udp"
+                    source:
+                      host: "0.0.0.0"
+                      port_protocol:
+                        eq: "bootpc"
+                    destination:
+                      host: "255.255.255.255"
+                      port_protocol:
+                        eq: "bootps"
+      loop: "{{ lista_de_diccionarios | subelements('permitido') }}"
+      when:  item.0.origen != 'Internet' and item.0.destino != 'Internet'  and item.1.puerto == "bootps"
+
+    - name: Crear ACLs cundo es todo permit y no existen casos especiales como Intenet y existe puerto
+      cisco.ios.ios_acls:
+        config:
+          - afi: ipv4
+            acls:
+              - name: "ACL_{{ item.0.origen }}"
+                acl_type: extended
+                aces:
+                  - grant: permit
+                    protocol: "{{item.1.tipo}}"
+                    source:
+                      address: "{{vlan_ips[item.0.origen]}}"
+                      wildcard_bits: "{{vlan_ips[item.0.origen+'_mask']}}"
+                    destination:
+                      address: "{{vlan_ips[item.0.destino]}}"
+                      wildcard_bits: "{{vlan_ips[item.0.destino+'_mask']}}"
+                      port_protocol:
+                        eq: "{{item.1.puerto}}"
+      loop: "{{ lista_de_diccionarios | subelements('permitido') }}"
+      when:  item.0.origen != 'Internet' and item.0.destino != 'Internet'  and item.1.puerto != ""
+
+    - name: Crear ACLs cundo es todo permit y no existen casos especiales como Intenet y no existe puerto
+      cisco.ios.ios_acls:
+        config:
+          - afi: ipv4
+            acls:
+              - name: "ACL_{{ item.0.origen }}"
+                acl_type: extended
+                aces:
+                  - grant: permit
+                    protocol: "{{item.1.tipo}}"
+                    source:
+                      address: "{{vlan_ips[item.0.origen]}}"
+                      wildcard_bits: "{{vlan_ips[item.0.origen+'_mask']}}"
+                    destination:
+                      address: "{{vlan_ips[item.0.destino]}}"
+                      wildcard_bits: "{{vlan_ips[item.0.destino+'_mask']}}"
+
+      loop: "{{ lista_de_diccionarios | subelements('permitido') }}"
+      when:  item.0.origen != 'Internet' and item.0.destino != 'Internet'  and item.1.puerto == ""
+
+    - name: Crear ACLs cundo es Intenet destino  existe puerto
+      cisco.ios.ios_acls:
+        config:
+          - afi: ipv4
+            acls:
+              - name: "ACL_{{ item.0.origen }}"
+                acl_type: extended
+                aces:
+                  - grant: deny
+                    protocol: "ip"
+                    source:
+                      address: "{{vlan_ips[item.0.origen]}}"
+                      wildcard_bits: "{{vlan_ips[item.0.origen+'_mask']}}"
+                    destination:
+                      address: "{{vlan_ips['CORE']}}"
+                      wildcard_bits: "{{vlan_ips['CORE_mask']}}"
+                  - grant: permit
+                    protocol: "{{item.1.tipo}}"
+                    source:
+                      address: "{{vlan_ips[item.0.origen]}}"
+                      wildcard_bits: "{{vlan_ips[item.0.origen+'_mask']}}"
+                    destination:
+                      any: true
+                      port_protocol:
+                        eq: "{{item.1.puerto}}"
+
+      loop: "{{ lista_de_diccionarios | subelements('permitido') }}"
+      when:  item.0.origen != 'Internet' and item.0.destino == 'Internet'  and item.1.puerto != ""
+
+    - name: Crear ACLs cuando es Intenet destino  no existe puerto
+      cisco.ios.ios_acls:
+        config:
+          - afi: ipv4
+            acls:
+              - name: "ACL_{{ item.0.origen }}"
+                acl_type: extended
+                aces:
+                  - grant: deny
+                    protocol: "ip"
+                    source:
+                      address: "{{vlan_ips[item.0.origen]}}"
+                      wildcard_bits: "{{vlan_ips[item.0.origen+'_mask']}}"
+                    destination:
+                      address: "{{vlan_ips['CORE']}}"
+                      wildcard_bits: "{{vlan_ips['CORE_mask']}}"
+                  - grant: permit
+                    protocol: "{{item.1.tipo}}"
+                    source:
+                      address: "{{vlan_ips[item.0.origen]}}"
+                      wildcard_bits: "{{vlan_ips[item.0.origen+'_mask']}}"
+                    destination:
+                      any: true
+      loop: "{{ lista_de_diccionarios | subelements('permitido') }}"
+      when:  item.0.origen != 'Internet' and item.0.destino == 'Internet'  and item.1.puerto == ""
+    - name: Denegar el resto de tráfico
+      cisco.ios.ios_acls:
+        config:
+          - afi: ipv4
+            acls:
+              - name: "ACL_{{ item.0 }}"
+                acl_type: extended
+                aces:
+                  - grant: deny
+                    protocol: "ip"
+                    source:
+                      any: true
+                    destination:
+                      any: true
+      loop: "{{ lista_zonas_origenes_clientes | flatten }}"
+
+
+
+    - name: Aplicar ACL a las interfaces clientes
+      cisco.ios.ios_config:
+        lines:
+          - " ip access-group ACL_{{ item.value }} in "
+        parents: "interface {{ item.key }}"
+      loop: "{{ nombre_zonas_origenes_clientes | dict2items }}"
+      loop_control:
+        loop_var: item
