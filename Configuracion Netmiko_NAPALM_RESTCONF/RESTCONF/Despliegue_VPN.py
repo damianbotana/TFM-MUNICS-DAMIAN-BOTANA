@@ -1,5 +1,5 @@
 
-from ..funciones_auxiliares import obtener_clave_y_ip
+from ..funciones_auxiliares import obtener_clave_y_ip,create_or_update_group_vars_file
 import json
 from Configuraccion_acceso_dispositivos_RESTCONF import obtener_informacion_restconf
 

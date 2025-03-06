@@ -1,6 +1,7 @@
 import requests
 from requests.auth import HTTPBasicAuth
 
+
 def operacciones_restconf(url,usuario,contrasena,data_json):
 
     """
