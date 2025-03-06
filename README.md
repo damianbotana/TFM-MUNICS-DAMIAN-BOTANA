@@ -1,10 +1,4 @@
 # TFM-Automatización de las tareas de fortificación de una infraestructura de red
-## Índice
-
-1. [Introducción][#Introducción]
-2. [Instalación][install]
-3. [Uso][usage]
-4. [Conclusión][conclusion]
    
 ## Introducción
 El siguiente proyecto corresponde con el TFM del máster de ciberseguridad, en la que se van automatizar las tareas de habilitar el acceso remoto mediante SSH, despliegue de una VPN entre los diferentes equipos de una organización y la aplicación de las políticas de seguridad definidas en un fichero Excel. Para la automatización se utilizarán Netmiko, NAPALM, Ansible y RESTCONF y los dispositivos que se aplicarán las configuraciones son dispositivos de IOS de Cisco.
