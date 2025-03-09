@@ -123,3 +123,4 @@ def vpn_dispositivos_despues_nat(host, lista_hosts, parametros, aplicacion_equip
     comandos += "ip dhcp support tunnel unicast\n"
 
     aplicacion_equipos_herramienta(host, comandos, [], [], [])
+

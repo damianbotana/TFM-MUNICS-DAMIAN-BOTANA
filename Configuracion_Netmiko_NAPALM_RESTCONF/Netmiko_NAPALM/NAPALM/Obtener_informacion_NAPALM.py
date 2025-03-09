@@ -1,7 +1,7 @@
 import re
 import ipaddress
-from configuracion_acceso_dispositivo_NAPALM import obtener_informacion_napalm
-from ....Configuracion_Netmiko_NAPALM_RESTCONF.funciones_auxiliares import convertir_cidr_a_diccionario,find_network_in_range,obtener_parametros_vpn,create_or_update_group_vars_file,cidr_to_network_and_wildcard,sumar_a_ip,find_network_in_range
+from Netmiko_NAPALM.NAPALM.configuracion_acceso_dispositivo_NAPALM import obtener_informacion_napalm
+from funciones_auxiliares import convertir_cidr_a_diccionario,find_network_in_range,obtener_parametros_vpn,create_or_update_group_vars_file,cidr_to_network_and_wildcard,sumar_a_ip,find_network_in_range
 
 def obtener_datos_cpe_nat_vpn_napalm(host,parametros,host_vars,grupo_aplicado):
     """
@@ -205,5 +205,6 @@ def obtener_acl_firewall_napalm_informacion(host, parametros, host_vars, grupo_a
     })
 
     return parametros
+
 
 

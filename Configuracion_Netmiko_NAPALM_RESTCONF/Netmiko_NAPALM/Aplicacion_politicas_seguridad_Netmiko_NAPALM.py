@@ -1,7 +1,7 @@
 from .Comandos_Cisco_parametrizados.Comandos_parametrizados_Cisco_Aplicacion_control_trafico import crear_clas_map,crear_policy_zfw,asignar_politicas_zonas,creacion_zonas_seguridad,asociar_zona_interfaz
 import pandas as pd
 
-file_path = '../politica_seguridad.xlsx'
+file_path = 'politica_seguridad.xlsx'
 
 def aplicar_politicas_excel(host, lista_hosts,parametros,aplicacion_equipos_herramienta):
     hostname_equipo_aplicado=host.pop('nombre_equipo')

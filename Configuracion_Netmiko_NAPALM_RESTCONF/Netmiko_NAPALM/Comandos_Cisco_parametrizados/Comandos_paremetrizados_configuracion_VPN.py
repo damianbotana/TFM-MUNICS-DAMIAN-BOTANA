@@ -3,7 +3,10 @@ import os
 import json
 import uuid
 import ipaddress
-from ....Configuracion_Netmiko_NAPALM_RESTCONF.funciones_auxiliares import cargar_claves, guardar_claves, sumar_a_ip,obtener_ip_asignada,obtener_clave_y_ip
+import sys
+sys.path.append("..") # Adds higher directory to python modules path.
+from funciones_auxiliares import cargar_claves, guardar_claves, sumar_a_ip,obtener_ip_asignada,obtener_clave_y_ip
+
 ruta_fichero="claves.json"
 
 def sumar_a_ip(ip,numero):
@@ -444,3 +447,4 @@ def definicion_ca_que_se_utiliza(nombre_equipo, direccion_ca, subjectname):
     ! Inclusión del subjectname al certificado creado
     subject-name cn={subjectname}
     """
+

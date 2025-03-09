@@ -1,0 +1,5 @@
+ip_fw_cpe: 10.0.0.5
+ip_recepcion_vpn: 100.30.0.26
+'ip_recepcion_vpn ': 100.30.0.14
+ip_recepcion_vpnFW3: 100.30.0.14
+red_interna_paso_vpn: 10.0.0.4/30

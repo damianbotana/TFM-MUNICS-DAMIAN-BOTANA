@@ -1,12 +1,12 @@
 import json
-from Configuraccion_acceso_dispositivos_RESTCONF import obtener_informacion_restconf
+from RESTCONF.Configuraccion_acceso_dispositivos_RESTCONF import obtener_informacion_restconf
 import requests
 from requests.auth import HTTPBasicAuth
 import pandas as pd
 import ipaddress
 from ipaddress import IPv4Address
 import re
-file_path = '..politica_seguridad.xlsx'
+file_path = 'politica_seguridad.xlsx'
 
 #----------------------------------------------------------------Obtener información----------------------------------
 def obtener_acl_firewall_restconf_informacion(host, parametros, host_vars, grupo_aplicado):
@@ -572,6 +572,7 @@ def crear_zonas_pair(host,lista_zonas,aplicacion_equipos_herramienta):
     data=json.dumps(data,indent=2)
     print(data)
     aplicacion_equipos_herramienta(f"https://{host['direccion']}:443/restconf/data/Cisco-IOS-XE-native:native/zone-pair",host['username'],host['password'],data)
+
 
 
 

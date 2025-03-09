@@ -1,0 +1,28 @@
+bgp_id_actual: 65002
+autenticacion_ikev2: clave
+red_administracion: 192.168.230.0
+subname: munics.pri
+ip_ca: 100.10.0.1
+red_administracion: 192.168.230.0
+
+vlan_ips:
+  VLAN10: "192.168.10.0"
+  VLAN10_mask: "0.0.0.255"
+  VLAN20: "192.168.20.0"
+  VLAN20_mask: "0.0.0.255"
+  VLAN30: "192.168.30.0"
+  VLAN30_mask: "0.0.0.255"
+  VLAN40: "192.168.40.0"
+  VLAN40_mask: "0.0.0.255"
+  VLAN50: "192.168.50.0"
+  VLAN50_mask: "0.0.0.255"
+  VLAN60: "192.168.60.0"
+  VLAN60_mask: "0.0.0.255"
+  CORE: "192.168.0.0"
+  CORE_mask: "0.0.255.255"
+  ADM: "192.168.230.0"
+  ADM_mask: "0.0.0.255"
+  Servicios: "192.168.100.0"
+  Servicios_mask: "0.0.0.255"
+  Internet: "any"
+red_vpn: 172.16.10.0/24

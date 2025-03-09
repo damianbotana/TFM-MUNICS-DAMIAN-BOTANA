@@ -9,6 +9,7 @@ def _obtener_variables_todos_equipos(host_vars):
         "subname": host_vars['subname'],
         "password_ca": str(host_vars['password_ca']),
         "ip_ca": host_vars['ip_ca'],
+        "tamano_clave_rsa": host_vars['tamano_clave_rsa'],
         "red_administracion": host_vars['red_administracion'],
 
     }

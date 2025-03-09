@@ -1,6 +1,6 @@
-from ....Configuracion_Netmiko_NAPALM_RESTCONF.funciones_auxiliares import cidr_to_network_and_wildcard,find_network_for_gateway,sumar_a_ip, convertir_cidr_a_diccionario,find_network_in_range,obtener_clave_y_ip,create_or_update_group_vars_file,obtener_parametros_vpn
+from funciones_auxiliares import cidr_to_network_and_wildcard,find_network_for_gateway,sumar_a_ip, convertir_cidr_a_diccionario,find_network_in_range,obtener_clave_y_ip,create_or_update_group_vars_file,obtener_parametros_vpn
 from ipaddress import IPv4Address
-from configuracion_acceso_dispositivos_netmiko import lectura_datos_netmiko
+from Netmiko_NAPALM.Netmiko.configuracion_acceso_dispositivos_netmiko import lectura_datos_netmiko
 import re
 import ipaddress
 
@@ -271,5 +271,6 @@ def obterner_datos_cpe_nat_vpn_netmiko(host,parametros,host_vars,grupo_aplicado)
                 create_or_update_group_vars_file("firewalls",{"ip_recepcion_vpn"+str(firewall): default_gateway})
 
                 return parametros
+
 
 

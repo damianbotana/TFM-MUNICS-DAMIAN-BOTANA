@@ -1,0 +1,6 @@
+ip_fireway: 10.0.0.5
+ip_fw_cpe: 10.0.0.5
+ip_recepcion_vpn: 100.20.0.26
+'ip_recepcion_vpn ': 100.20.0.14
+ip_recepcion_vpnFW2: 100.20.0.14
+red_interna_paso_vpn: 10.0.0.4/30

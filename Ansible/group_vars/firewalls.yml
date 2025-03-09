@@ -1,0 +1,29 @@
+FW2_clave_keyring: batman2
+FW3_clave_keyring: batman3
+FW_clave_keyring: batman
+bgp_id_FW: 65000
+bgp_id_FW2: 65001
+bgp_id_FW3: 65002
+encriptado: aes-gcm-256
+grupo_dif: 14
+integridad: sha256
+ip_ca: 100.20.0.1
+ip_recepcion_vpnFW: 100.10.0.14
+ip_recepcion_vpnFW2: 100.20.0.14
+ip_recepcion_vpnFW3: 100.30.0.14
+ip_vpn: 172.16.10.0
+ipsec_name_profile: ipsec_profile
+keyring_name: KEYRING
+policy_name_ike_name: ike_v2_policy
+politicasSeguridad:
+  internet:
+    permitted_traffic:
+    - destination: any
+      protocol: HTTP
+    - destination: any
+      protocol: HTTPS
+    - destination: propios
+      protocol: ICMP
+profile_ike_v2_name: ike_ve_profile
+proporsal_ike_name: ike_v2_proporsal
+tipo_autenticacion: pre-share

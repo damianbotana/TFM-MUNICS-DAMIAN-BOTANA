@@ -1,9 +1,10 @@
 
-from ..funciones_auxiliares import obtener_clave_y_ip,create_or_update_group_vars_file,obtener_parametros_vpn,sumar_a_ip,cidr_to_network_and_wildcard,cidr_to_network_and_wildcard_tuple
+from funciones_auxiliares  import obtener_clave_y_ip,create_or_update_group_vars_file,obtener_parametros_vpn,sumar_a_ip,cidr_to_network_and_wildcard,cidr_to_network_and_wildcard_tuple
 import json
-from Configuraccion_acceso_dispositivos_RESTCONF import obtener_informacion_restconf
+from RESTCONF.Configuraccion_acceso_dispositivos_RESTCONF import obtener_informacion_restconf
 import ipaddress
-
+import sys
+sys.path.append("..") # Adds higher directory to python modules path.
 
 
 #------------------------------------------------------Obtención informacion-------------------------
@@ -654,4 +655,5 @@ def ikev2_creacion_resconf(host,lista_hosts,parametros,aplicacion_equipos_herram
     aplicacion_equipos_herramienta(f"https://{host['direccion']}:443/restconf/data/Cisco-IOS-XE-native:native/crypto/ikev2",host['username'],host['password'],data)
 
     return parametros
+
 
